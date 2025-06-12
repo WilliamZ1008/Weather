@@ -1,6 +1,8 @@
 package com.example.weather.network
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import com.example.weather.model.WeatherData
 import okhttp3.*
@@ -16,8 +18,13 @@ class WeatherApi(private val context: Context) {
         .cache(Cache(context.cacheDir, 10 * 1024 * 1024)) // 10MB 缓存
         .build()
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+    
+    // 请确保这是你的有效API密钥
+    private val apiKey = "0497a2202958980fa3c2ca1d19201059"
+
     fun fetchWeather(city: String, date: String, callback: (WeatherData?) -> Unit) {
-        val weatherUrl = "https://api.openweathermap.org/data/2.5/weather?q=$city&appid=YOUR_API_KEY&units=metric"
+        val weatherUrl = "https://api.openweathermap.org/data/2.5/weather?q=$city&appid=$apiKey&units=metric&lang=zh_cn"
         
         val request = Request.Builder()
             .url(weatherUrl)
@@ -26,7 +33,7 @@ class WeatherApi(private val context: Context) {
 
         httpClient.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                context.runOnUiThread {
+                mainHandler.post {
                     Toast.makeText(context, "网络异常，请检查网络连接", Toast.LENGTH_SHORT).show()
                 }
                 callback(null)
@@ -34,8 +41,16 @@ class WeatherApi(private val context: Context) {
 
             override fun onResponse(call: Call, response: Response) {
                 if (!response.isSuccessful) {
-                    context.runOnUiThread {
-                        Toast.makeText(context, "获取天气数据失败", Toast.LENGTH_SHORT).show()
+                    val errorBody = response.body?.string()
+                    val errorMessage = try {
+                        val jsonError = JSONObject(errorBody ?: "")
+                        jsonError.optString("message", "未知错误")
+                    } catch (e: Exception) {
+                        "获取天气数据失败: ${response.code}"
+                    }
+                    
+                    mainHandler.post {
+                        Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show()
                     }
                     callback(null)
                     return
@@ -62,8 +77,8 @@ class WeatherApi(private val context: Context) {
                     
                     callback(weatherData)
                 } catch (e: Exception) {
-                    context.runOnUiThread {
-                        Toast.makeText(context, "解析天气数据失败", Toast.LENGTH_SHORT).show()
+                    mainHandler.post {
+                        Toast.makeText(context, "解析天气数据失败: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
                     callback(null)
                 }

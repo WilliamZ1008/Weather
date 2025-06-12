@@ -17,6 +17,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var weatherApi: WeatherApi
     private lateinit var dbHelper: WeatherDbHelper
     private var selectedDate = "今天"
+    private var isFirstLoad = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,6 +30,24 @@ class MainActivity : AppCompatActivity() {
         setupSpinner()
         setupSwipeRefresh()
         setupSearchButton()
+        
+        // 显示默认的假天气信息
+        showDefaultWeather()
+    }
+
+    private fun showDefaultWeather() {
+        val defaultWeather = WeatherData(
+            city = "西安",
+            date = selectedDate,
+            temperature = 25.0,
+            description = "晴朗",
+            updateTime = System.currentTimeMillis(),
+            humidity = 45,
+            windSpeed = 3.5,
+            precipitation = 0.0
+        )
+        updateUI(defaultWeather)
+        binding.editCity.setText("Beijing")
     }
 
     private fun setupSpinner() {
@@ -41,7 +60,7 @@ class MainActivity : AppCompatActivity() {
             override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
                 selectedDate = dates[position]
                 val city = binding.editCity.text.toString()
-                if (city.isNotEmpty()) {
+                if (city.isNotEmpty() && !isFirstLoad) {
                     fetchWeather(city, selectedDate)
                 }
             }
@@ -68,11 +87,14 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "请输入城市名称", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
+            isFirstLoad = false
             fetchWeather(city, selectedDate)
         }
     }
 
     private fun fetchWeather(city: String, date: String) {
+        binding.swipeRefresh.isRefreshing = true
+        
         // 先检查缓存
         val cachedWeather = dbHelper.getWeather(city, date)
         if (cachedWeather != null && !dbHelper.isWeatherDataExpired(cachedWeather.updateTime)) {
